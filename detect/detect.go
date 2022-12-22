@@ -498,19 +498,11 @@ func (d *Detector) DetectJsonFile(source string) ([]report.Finding, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(len(fragments))
 	for _, f := range fragments {
 		for _, finding := range d.Detect(f) {
 			d.addFinding(finding)
 		}
 	}
-
-	//for _, finding := range d.Detect(fragment) {
-	//	// need to add 1 since line counting starts at 1
-	//	finding.EndLine++
-	//	finding.StartLine++
-	//,	d.addFinding(finding)
-	//}
 
 	return d.findings, nil
 }
