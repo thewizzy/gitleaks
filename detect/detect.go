@@ -466,7 +466,8 @@ func JsonUnwrap(source string, objects interface{}, parents []string) ([]Fragmen
 				fragments = append(fragments, f...)
 			default:
 				fragments = append(fragments, Fragment{
-					Raw:            fmt.Sprintf("%v", v),
+					// Some rules will rely on knowing the json key so include it.
+					Raw:            fmt.Sprintf("\"%s\": \"%v\"", k, v),
 					FilePath:       source + " " + strings.Join(parents, " > "),
 					SymlinkFile:    "",
 					CommitSHA:      "",
