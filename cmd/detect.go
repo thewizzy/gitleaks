@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -120,16 +119,11 @@ func runDetect(cmd *cobra.Command, args []string) {
 	// determine if the source input is a single json file
 	isJsonFile, err := cmd.Flags().GetBool("json-file")
 	if err != nil {
-		log.Fatal().Err(err).Msg("could not call GetBool() for no-git")
-	}
-	if isJsonFile {
-		// we use the no git if the source is a single file
-		noGit = true
+		log.Fatal().Err(err).Msg("could not call GetBool() for json-file")
 	}
 
 	// start the detector scan
 	if isJsonFile {
-		fmt.Println("Treating as json file")
 		findings, err = detector.DetectJsonFile(source)
 		if err != nil {
 			// don't exit on error, just log it
