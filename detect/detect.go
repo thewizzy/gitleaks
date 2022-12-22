@@ -3,6 +3,7 @@ package detect
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -395,6 +396,123 @@ func (d *Detector) DetectGit(source string, logOpts string, gitScanType GitScanT
 type scanTarget struct {
 	Path    string
 	Symlink string
+}
+
+func JsonUnwrap(source string, objects interface{}, parents []string) ([]Fragment, error) {
+	var fragments []Fragment
+
+	switch objects.(type) {
+	case []interface{}:
+		for i, v := range objects.([]interface{}) {
+			switch v.(type) {
+			case []interface{}:
+				var p []string
+				if len(parents) > 0 {
+					// Todo: gotta be a better way, maybe a tuple with key / count
+					p = append(parents[:len(parents)-1], fmt.Sprintf("%s:%d", strings.Split(parents[len(parents)-1], ":")[0], i+1))
+				}
+				f, err := JsonUnwrap(source, v, p)
+				if err != nil {
+					return nil, err
+				}
+				fragments = append(fragments, f...)
+			case map[string]interface{}:
+				id := ""
+				key := ""
+				if val, ok := v.(map[string]interface{})["id"]; ok {
+					id = fmt.Sprintf("%v", val)
+				}
+				if val, ok := v.(map[string]interface{})["key"]; ok {
+					key = fmt.Sprintf("%v", val)
+				}
+				var p []string
+				if len(parents) > 0 {
+					// Todo: gotta be a better way, maybe a tuple with key / count
+					p = append(parents[:len(parents)-1], fmt.Sprintf("%s(id:%s|key:%s|entry:%d )", strings.Split(parents[len(parents)-1], "(")[0], id, key, i+1))
+				}
+				f, err := JsonUnwrap(source, v, p)
+				if err != nil {
+					return nil, err
+				}
+				fragments = append(fragments, f...)
+			default:
+				fragments = append(fragments, Fragment{
+					Raw:            fmt.Sprintf("%v", v),
+					FilePath:       source + " " + strings.Join(parents, " > "),
+					SymlinkFile:    "",
+					CommitSHA:      "",
+					newlineIndices: nil,
+					keywords:       nil,
+				})
+			}
+
+		}
+	case interface{}:
+		for k, v := range objects.(map[string]interface{}) {
+			switch v.(type) {
+			case map[string]interface{}:
+				p := append(parents, k)
+				f, err := JsonUnwrap(source, v, p)
+				if err != nil {
+					return nil, err
+				}
+				fragments = append(fragments, f...)
+			case []interface{}:
+				p := append(parents, k)
+				f, err := JsonUnwrap(source, v, p)
+				if err != nil {
+					return nil, err
+				}
+				fragments = append(fragments, f...)
+			default:
+				fragments = append(fragments, Fragment{
+					Raw:            fmt.Sprintf("%v", v),
+					FilePath:       source + " " + strings.Join(parents, " > "),
+					SymlinkFile:    "",
+					CommitSHA:      "",
+					newlineIndices: nil,
+					keywords:       nil,
+				})
+			}
+
+		}
+	}
+
+	return fragments, nil
+}
+
+// DetectFile accepts a path to a source json file and begins a scan of the file
+func (d *Detector) DetectJsonFile(source string) ([]report.Finding, error) {
+	var objects interface{}
+
+	b, err := os.ReadFile(source)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &objects); err != nil {
+		return nil, err
+	}
+	var parents []string
+	fragments, err := JsonUnwrap(source, objects, parents)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(len(fragments))
+	for _, f := range fragments {
+		for _, finding := range d.Detect(f) {
+			d.addFinding(finding)
+		}
+	}
+
+	//for _, finding := range d.Detect(fragment) {
+	//	// need to add 1 since line counting starts at 1
+	//	finding.EndLine++
+	//	finding.StartLine++
+	//,	d.addFinding(finding)
+	//}
+
+	return d.findings, nil
 }
 
 // DetectFiles accepts a path to a source directory or file and begins a scan of the
